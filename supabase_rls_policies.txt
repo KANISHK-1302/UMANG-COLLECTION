@@ -1,0 +1,52 @@
+-- ============================================================
+-- STUDENTS table policies
+-- ============================================================
+
+-- Allow any authenticated user to READ students (needed for volunteer lookup)
+CREATE POLICY "Authenticated users can read students"
+ON students FOR SELECT
+TO authenticated
+USING (true);
+
+-- Allow only admins to INSERT students (bulk upload, seed data)
+CREATE POLICY "Admins can insert students"
+ON students FOR INSERT
+TO authenticated
+WITH CHECK (
+  auth.jwt() ->> 'email' IN (
+    'kanishkagrawal1302banswara@gmail.com',
+    'f20220869@pilani.bits-pilani.ac.in'
+  )
+);
+
+-- Allow only admins to UPDATE students (inline field editing)
+CREATE POLICY "Admins can update students"
+ON students FOR UPDATE
+TO authenticated
+USING (
+  auth.jwt() ->> 'email' IN (
+    'kanishkagrawal1302banswara@gmail.com',
+    'f20220869@pilani.bits-pilani.ac.in'
+  )
+);
+
+-- ============================================================
+-- DONATIONS table policies
+-- ============================================================
+
+-- Allow any authenticated user to READ donations (admin stats + export)
+CREATE POLICY "Authenticated users can read donations"
+ON donations FOR SELECT
+TO authenticated
+USING (true);
+
+-- Allow any authenticated user to INSERT donations (volunteers recording)
+CREATE POLICY "Authenticated users can insert donations"
+ON donations FOR INSERT
+TO authenticated
+WITH CHECK (true);
+
+-- ============================================================
+-- NOTE: If any policy already exists with the same name, drop it first:
+-- DROP POLICY "policy name" ON table_name;
+-- ============================================================
