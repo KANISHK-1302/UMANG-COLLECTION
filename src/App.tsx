@@ -19,7 +19,8 @@ import {
   Pencil,
   Check,
   Mail,
-  RefreshCw
+  RefreshCw,
+  Delete
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
@@ -56,6 +57,7 @@ export default function App() {
   const [step, setStep] = useState<Step>('lookup');
   const [bitsId, setBitsId] = useState('');
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
+  const [searchResults, setSearchResults] = useState<Student[]>([]);
   const [amount, setAmount] = useState<number | null>(null);
   const [paymentMode, setPaymentMode] = useState<'swd' | 'upi'>('upi');
   const [loading, setLoading] = useState(false);
@@ -183,6 +185,51 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleGlobalKeydown);
   }, [step, editingField, amount, isOtherAmount]); // paymentMode is handled via setter callback `setPaymentMode(prev => ...)` so it is safe to omit.
 
+  // Global Mobile Swipe Back
+  useEffect(() => {
+    let touchStartX = 0;
+    let touchStartY = 0;
+    
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartX = e.changedTouches[0].screenX;
+      touchStartY = e.changedTouches[0].screenY;
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      const touchEndX = e.changedTouches[0].screenX;
+      const touchEndY = e.changedTouches[0].screenY;
+      
+      const xDiff = touchEndX - touchStartX;
+      const yDiff = touchEndY - touchStartY;
+      
+      // Swipe Right (Left to Right) for "Back"
+      // Must cover at least 70px horizontally, and must not veer vertically too much (prevents diagonal scrolling from triggering it)
+      if (xDiff > 70 && Math.abs(yDiff) < 60) {
+        const activeTag = document.activeElement?.tagName.toLowerCase();
+        const isInputFocused = ['input', 'textarea'].includes(activeTag || '');
+
+        if (isInputFocused) {
+          if (editingField) { setEditingField(null); return; }
+          if (isOtherAmount) { setIsOtherAmount(false); return; }
+          (document.activeElement as HTMLElement)?.blur();
+          return;
+        }
+
+        if (step === 'confirm') setStep('lookup');
+        else if (step === 'amount') setStep('confirm');
+        else if (step === 'verify') setStep('amount');
+        else if (step === 'success') resetForm();
+      }
+    };
+
+    window.addEventListener('touchstart', handleTouchStart);
+    window.addEventListener('touchend', handleTouchEnd);
+    return () => {
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [step, editingField, isOtherAmount]);
+
   // Robust Auto-focus for OTP input after loading finishes
   useEffect(() => {
     if (step === 'verify' && !otpLoading && !otpVerified) {
@@ -285,16 +332,19 @@ export default function App() {
       const { data, error: err } = await supabase
         .from('students')
         .select('*')
-        .eq('bitsId', bitsId.trim().toUpperCase())
-        .maybeSingle();
+        .ilike('bitsId', '%' + bitsId.trim().toUpperCase());
 
       if (err) throw err;
       
-      if (data) {
-        setCurrentStudent(data as Student);
-        setStep('confirm');
+      if (data && data.length > 0) {
+        if (data.length === 1) {
+          setCurrentStudent(data[0] as Student);
+          setStep('confirm');
+        } else {
+          setSearchResults(data as Student[]);
+        }
       } else {
-        setError('Student not found in database.');
+        setError('No student found matching those digits.');
       }
     } catch (err) {
       setError('Error fetching student details.');
@@ -350,6 +400,7 @@ export default function App() {
     setStep('lookup');
     setBitsId('');
     setCurrentStudent(null);
+    setSearchResults([]);
     setAmount(null);
     setIsOtherAmount(false);
     setPaymentMode('upi');
@@ -807,7 +858,9 @@ alter publication supabase_realtime add table donations;`}
               <form onSubmit={handleLookup} className="relative">
                 <input 
                   type="text"
-                  placeholder="e.g. 2022B1AB0869"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="e.g. 0869"
                   value={bitsId}
                   onChange={(e) => setBitsId(e.target.value.toUpperCase())}
                   className="w-full p-4 sm:p-6 bg-white border border-stone-200 rounded-3xl text-lg sm:text-xl font-mono focus:outline-none focus:ring-2 focus:ring-stone-900 transition-all shadow-sm uppercase placeholder:normal-case"
@@ -815,13 +868,44 @@ alter publication supabase_realtime add table donations;`}
                 />
                 <button 
                   type="submit"
-                  disabled={loading}
-                  className="absolute right-3 top-3 bottom-3 px-6 bg-stone-900 text-white rounded-2xl hover:bg-stone-800 disabled:opacity-50 transition-all flex items-center gap-2"
+                  disabled={loading || !bitsId}
+                  className="absolute right-3 top-3 bottom-3 px-4 sm:px-6 bg-stone-900 text-white rounded-2xl hover:bg-stone-800 disabled:opacity-50 transition-all flex items-center gap-2"
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
                   <span className="hidden sm:inline">Search</span>
                 </button>
               </form>
+
+              {searchResults.length > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-6 space-y-3"
+                >
+                  <p className="text-xs font-bold text-stone-400 uppercase tracking-widest px-2">Multiple Matches ({searchResults.length})</p>
+                  <div className="space-y-2 max-h-[40vh] sm:max-h-[50vh] overflow-y-auto pr-1">
+                    {searchResults.map(student => (
+                      <button
+                        key={student.bitsId}
+                        onClick={() => {
+                          setCurrentStudent(student);
+                          setSearchResults([]);
+                          setStep('confirm');
+                        }}
+                        className="w-full p-4 bg-white border border-stone-200 rounded-2xl hover:border-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-900 transition-all text-left flex flex-col sm:flex-row justify-between sm:items-center gap-2 group"
+                      >
+                        <div>
+                          <p className="font-bold text-stone-900 group-hover:text-stone-600 transition-colors">{student.name}</p>
+                          <p className="text-xs text-stone-500 font-mono mt-0.5">{student.bitsId}</p>
+                        </div>
+                        <div className="text-xs text-stone-500 font-medium px-2.5 py-1.5 bg-stone-100 rounded-lg self-start sm:self-auto shrink-0">
+                          {student.hostel} {student.roomNo && `• Rm ${student.roomNo}`}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
             </motion.div>
           )}
 
@@ -1088,20 +1172,20 @@ alter publication supabase_realtime add table donations;`}
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-8"
+              className="space-y-4 sm:space-y-8"
             >
-              <div className="text-center space-y-2">
-                <h1 className="text-3xl sm:text-4xl font-serif font-bold">Donation Amount</h1>
-                <p className="text-stone-500">Select amount and payment mode</p>
+              <div className="text-center space-y-1 sm:space-y-2">
+                <h1 className="text-2xl sm:text-4xl font-serif font-bold">Donation Amount</h1>
+                <p className="text-stone-500 text-sm sm:text-base">Select amount and payment mode</p>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 gap-2 sm:gap-4">
                 {[365, 500, 750, 1000, 1500, 2100, 3100, 5100].map((amt) => (
                   <button
                     key={amt}
                     onClick={() => { setAmount(amt); setIsOtherAmount(false); }}
                     className={cn(
-                      "py-4 sm:py-6 rounded-2xl border-2 transition-all text-lg sm:text-xl font-bold",
+                      "py-3 sm:py-6 rounded-xl sm:rounded-2xl border-2 transition-all text-base sm:text-xl font-bold tracking-tight",
                       amount === amt && !isOtherAmount
                         ? "border-stone-900 bg-stone-900 text-white shadow-lg scale-[1.02]" 
                         : "border-stone-200 bg-white text-stone-600 hover:border-stone-400"
@@ -1113,7 +1197,7 @@ alter publication supabase_realtime add table donations;`}
                 <button
                   onClick={() => { setIsOtherAmount(true); setAmount(null); }}
                   className={cn(
-                    "py-4 sm:py-6 rounded-2xl border-2 transition-all text-lg sm:text-xl font-bold",
+                    "py-3 sm:py-6 rounded-xl sm:rounded-2xl border-2 transition-all text-base sm:text-xl font-bold tracking-tight",
                     isOtherAmount
                       ? "border-stone-900 bg-stone-900 text-white shadow-lg scale-[1.02]" 
                       : "border-stone-200 bg-white text-stone-600 hover:border-stone-400"
@@ -1147,40 +1231,40 @@ alter publication supabase_realtime add table donations;`}
                 )}
               </AnimatePresence>
 
-              <div className="space-y-4 pt-2">
+              <div className="space-y-2 sm:space-y-4 pt-0 sm:pt-2">
                 <label className="text-[10px] uppercase tracking-widest font-bold text-stone-400 block">Payment Mode</label>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-2 sm:gap-4">
                   <button
                     onClick={() => setPaymentMode('upi')}
                     className={cn(
-                      "py-4 rounded-2xl border-2 flex items-center justify-center gap-3 font-bold transition-all",
+                      "py-3 sm:py-4 rounded-xl sm:rounded-2xl border-2 flex items-center justify-center gap-2 font-bold transition-all",
                       paymentMode === 'upi'
                         ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                         : "border-stone-200 bg-white text-stone-400"
                     )}
                   >
-                    <CreditCard className="w-5 h-5" />
+                    <CreditCard className="w-4 h-4 sm:w-5 sm:h-5" />
                     UPI
                   </button>
                   <button
                     onClick={() => setPaymentMode('swd')}
                     className={cn(
-                      "py-4 rounded-2xl border-2 flex items-center justify-center gap-3 font-bold transition-all",
+                      "py-3 sm:py-4 rounded-xl sm:rounded-2xl border-2 flex items-center justify-center gap-2 font-bold transition-all",
                       paymentMode === 'swd'
                         ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                         : "border-stone-200 bg-white text-stone-400"
                     )}
                   >
-                    <Database className="w-5 h-5" />
+                    <Database className="w-4 h-4 sm:w-5 sm:h-5" />
                     SWD
                   </button>
                 </div>
               </div>
 
-              <div className="flex gap-4 pt-4">
+              <div className="flex gap-2 sm:gap-4 pt-2 sm:pt-4">
                 <button 
                   onClick={() => setStep('confirm')}
-                  className="flex-1 py-4 border border-stone-200 rounded-2xl font-medium hover:bg-stone-100 transition-colors"
+                  className="flex-1 py-3 sm:py-4 border border-stone-200 rounded-xl sm:rounded-2xl font-medium hover:bg-stone-100 transition-colors"
                 >
                   Back
                 </button>
@@ -1188,9 +1272,9 @@ alter publication supabase_realtime add table donations;`}
                   id="amount-next-btn"
                   disabled={!amount}
                   onClick={handleProceedToVerify}
-                  className="flex-[2] py-4 bg-stone-900 text-white rounded-2xl font-medium hover:bg-stone-800 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                  className="flex-[2] py-3 sm:py-4 bg-stone-900 text-white rounded-xl sm:rounded-2xl font-medium hover:bg-stone-800 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 >
-                  <Mail className="w-5 h-5" />
+                  <Mail className="w-4 h-4 sm:w-5 sm:h-5" />
                   Verify Donor
                 </button>
               </div>
