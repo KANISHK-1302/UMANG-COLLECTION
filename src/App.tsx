@@ -202,9 +202,9 @@ export default function App() {
       const xDiff = touchEndX - touchStartX;
       const yDiff = touchEndY - touchStartY;
       
-      // Swipe Right (Left to Right) for "Back"
-      // Must cover at least 70px horizontally, and must not veer vertically too much (prevents diagonal scrolling from triggering it)
-      if (xDiff > 70 && Math.abs(yDiff) < 60) {
+      // Swipe Back Feature: Bi-directional horizontal swipe mapping. 
+      // Math.abs allows both Left-to-Right and Right-to-Left swipes, overriding OS-specific behaviors when touch-pan-y is applied.
+      if (Math.abs(xDiff) > 70 && Math.abs(yDiff) < 60) {
         const activeTag = document.activeElement?.tagName.toLowerCase();
         const isInputFocused = ['input', 'textarea'].includes(activeTag || '');
 
@@ -325,6 +325,8 @@ export default function App() {
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bitsId.trim()) return;
+    
+    (document.activeElement as HTMLElement)?.blur();
     
     setLoading(true);
     setError(null);
@@ -785,7 +787,7 @@ alter publication supabase_realtime add table donations;`}
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900 font-sans">
+    <div className="min-h-screen bg-stone-50 text-stone-900 font-sans overscroll-x-none touch-pan-y">
       {/* Navigation */}
       <nav className="bg-white border-b border-stone-200 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-3">
@@ -883,7 +885,7 @@ alter publication supabase_realtime add table donations;`}
                   className="mt-6 space-y-3"
                 >
                   <p className="text-xs font-bold text-stone-400 uppercase tracking-widest px-2">Multiple Matches ({searchResults.length})</p>
-                  <div className="space-y-2 max-h-[40vh] sm:max-h-[50vh] overflow-y-auto pr-1">
+                  <div className="space-y-2 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto pr-1">
                     {searchResults.map(student => (
                       <button
                         key={student.bitsId}
@@ -941,14 +943,33 @@ alter publication supabase_realtime add table donations;`}
                         autoFocus
                       />
                     ) : (
-                      <div className="flex items-center gap-2 group">
+                      <div className="flex items-center flex-wrap gap-2 group">
                         <h3 className="text-xl sm:text-2xl font-bold">{currentStudent.name}</h3>
-                        <button onClick={() => setEditingField('name')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-stone-400 hover:text-stone-900">
-                          <Pencil className="w-4 h-4" />
+                        <button onClick={() => setEditingField('name')} className="p-2 bg-stone-100 rounded-full text-stone-500 hover:text-stone-900 hover:bg-stone-200 transition-all shrink-0">
+                          <Pencil className="w-4 h-4 sm:w-5 sm:h-5" />
                         </button>
                       </div>
                     )}
-                    <p className="text-stone-500 font-mono">{currentStudent.bitsId}</p>
+                    {editingField === 'bitsId' ? (
+                      <input 
+                        type="text"
+                        defaultValue={currentStudent.bitsId}
+                        onBlur={(e) => {
+                          updateStudentField('bitsId', e.target.value.toUpperCase());
+                          setEditingField(null);
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                        className="font-mono text-stone-500 bg-stone-50 border border-stone-900/20 rounded-lg px-2 py-1 mt-1 focus:outline-none focus:ring-2 focus:ring-stone-900/10 uppercase"
+                        autoFocus
+                      />
+                    ) : (
+                      <div className="flex items-center gap-3 mt-1">
+                        <p className="text-stone-500 font-mono">{currentStudent.bitsId}</p>
+                        <button onClick={() => setEditingField('bitsId')} className="p-2 bg-stone-100 rounded-full text-stone-400 hover:text-stone-900 hover:bg-stone-200 transition-all shrink-0">
+                          <Pencil className="w-3 h-3 sm:w-4 sm:h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
                 
@@ -968,10 +989,10 @@ alter publication supabase_realtime add table donations;`}
                         autoFocus
                       />
                     ) : (
-                      <div className="flex items-center gap-2 group">
+                      <div className="flex items-center gap-3">
                         <p className="font-medium">{currentStudent.hostel}</p>
-                        <button onClick={() => setEditingField('hostel')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-stone-400 hover:text-stone-900">
-                          <Pencil className="w-3 h-3" />
+                        <button onClick={() => setEditingField('hostel')} className="p-2 bg-stone-100 rounded-full text-stone-500 hover:text-stone-900 hover:bg-stone-200 transition-all shrink-0">
+                          <Pencil className="w-3 h-3 sm:w-4 sm:h-4" />
                         </button>
                       </div>
                     )}
@@ -991,10 +1012,10 @@ alter publication supabase_realtime add table donations;`}
                         autoFocus
                       />
                     ) : (
-                      <div className="flex items-center gap-2 group">
+                      <div className="flex items-center gap-3">
                         <p className="font-medium">{currentStudent.roomNo}</p>
-                        <button onClick={() => setEditingField('roomNo')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-stone-400 hover:text-stone-900">
-                          <Pencil className="w-3 h-3" />
+                        <button onClick={() => setEditingField('roomNo')} className="p-2 bg-stone-100 rounded-full text-stone-500 hover:text-stone-900 hover:bg-stone-200 transition-all shrink-0">
+                          <Pencil className="w-3 h-3 sm:w-4 sm:h-4" />
                         </button>
                       </div>
                     )}
@@ -1015,10 +1036,10 @@ alter publication supabase_realtime add table donations;`}
                       autoFocus
                     />
                   ) : (
-                    <div className="flex items-center gap-2 group">
-                      <p className="font-medium truncate">{currentStudent.email}</p>
-                      <button onClick={() => setEditingField('email')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-stone-400 hover:text-stone-900">
-                        <Pencil className="w-3 h-3" />
+                    <div className="flex justify-between items-center gap-3">
+                      <p className="font-medium truncate flex-1 min-w-0">{currentStudent.email}</p>
+                      <button onClick={() => setEditingField('email')} className="p-2 bg-stone-100 rounded-full text-stone-500 hover:text-stone-900 hover:bg-stone-200 transition-all shrink-0">
+                        <Pencil className="w-3 h-3 sm:w-4 sm:h-4" />
                       </button>
                     </div>
                   )}
