@@ -433,7 +433,12 @@ export default function App() {
     setOtpError(null);
     try {
       const { data, error } = await supabase.functions.invoke('send-donor-otp', {
-        body: { email: currentStudent.email },
+        body: { 
+          email: currentStudent.email,
+          name: currentStudent.name,
+          amount: amount,
+          paymentMode: paymentMode.toUpperCase()
+        },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -458,7 +463,12 @@ export default function App() {
       setOtpLoading(true);
       try {
         const { data, error } = await supabase.functions.invoke('send-donor-otp', {
-          body: { email: currentStudent.email },
+          body: { 
+            email: currentStudent.email,
+            name: currentStudent.name,
+            amount: amount,
+            paymentMode: paymentMode.toUpperCase()
+          },
         });
         if (error) throw error;
         if (data?.error) throw new Error(data.error);

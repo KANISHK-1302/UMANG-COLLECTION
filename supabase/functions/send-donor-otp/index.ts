@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { email } = await req.json();
+    const { email, name, amount, paymentMode } = await req.json();
 
     if (!email || typeof email !== "string") {
       return new Response(
@@ -97,24 +97,40 @@ Deno.serve(async (req) => {
       }
     });
 
+    const formattedAmount = Number(amount || 0).toLocaleString('en-IN');
+    const donorName = name || 'Donor';
+
     await transporter.sendMail({
       from: `"UMANG Collection'26" <${senderEmail}>`,
       to: email,
-      subject: "Your UMANG Donation Verification Code",
+      subject: "Donation Confirmation & Verification Code || UC'26",
       html: `
-        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
-          <h2 style="color: #1c1917; font-size: 24px; margin-bottom: 8px;">Donation Verification</h2>
-          <p style="color: #78716c; margin-bottom: 24px;">
-            A volunteer is recording a donation on your behalf at the UMANG Fundraiser Drive.
-            Use the code below to confirm your consent.
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; color: #1c1917;">
+          <p style="font-size: 16px; margin-bottom: 24px;">Dear ${donorName},</p>
+          
+          <p style="line-height: 1.6; margin-bottom: 24px;">
+            Thank you for your generous contribution of <strong>₹${formattedAmount}</strong> via <strong>${paymentMode || 'UPI'}</strong> towards the UMANG Collection 2026. Your support truly helps us make a meaningful difference.
           </p>
+          
+          <p style="line-height: 1.6; margin-bottom: 16px;">
+            To confirm your donation, please use the verification code below:
+          </p>
+          
           <div style="background: #f5f5f4; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
-            <p style="color: #78716c; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 8px;">Your verification code</p>
+            <p style="color: #78716c; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 8px;">Your OTP</p>
             <p style="font-size: 40px; font-weight: bold; color: #1c1917; letter-spacing: 0.2em; margin: 0;">${otp}</p>
           </div>
-          <p style="color: #a8a29e; font-size: 13px;">
-            This code expires in <strong>10 minutes</strong>. If you did not authorize this, please ignore this email.
+          
+          <p style="color: #78716c; font-size: 13px; line-height: 1.5; margin-bottom: 24px;">
+            This code is valid for <strong>10 minutes</strong>. If you did not authorize this, please ignore this email.
           </p>
+          
+          <p style="line-height: 1.6; margin-bottom: 32px;">
+            Your contribution goes beyond a donation—it brings hope, support, and positive change to those who need it most. We sincerely appreciate your kindness.
+          </p>
+          
+          <p style="margin: 0; font-weight: bold;">Regards,</p>
+          <p style="color: #78716c; margin: 4px 0 0;">NSS BITS Pilani</p>
         </div>
       `,
     });
