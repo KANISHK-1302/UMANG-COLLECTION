@@ -20,7 +20,8 @@ import {
   Check,
   Mail,
   RefreshCw,
-  Delete
+  Delete,
+  Trophy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
@@ -50,7 +51,7 @@ interface Donation {
   volunteerEmail: string;
 }
 
-type Step = 'lookup' | 'confirm' | 'verify' | 'amount' | 'success' | 'admin';
+type Step = 'lookup' | 'confirm' | 'verify' | 'amount' | 'success' | 'admin' | 'leaderboard';
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -68,7 +69,7 @@ export default function App() {
   const [isOtherAmount, setIsOtherAmount] = useState(false);
 
   // OTP state
-  const [otpDigits, setOtpDigits] = useState<string[]>(Array(6).fill(''));
+  const [otpDigits, setOtpDigits] = useState<string[]>(Array(4).fill(''));
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpError, setOtpError] = useState<string | null>(null);
   const [otpSent, setOtpSent] = useState(false);
@@ -80,6 +81,9 @@ export default function App() {
     swd: 0,
     donorCount: 0
   });
+
+  const [hostelLeaderboard, setHostelLeaderboard] = useState<{ hostel: string, count: number }[]>([]);
+  const [volunteerLeaderboard, setVolunteerLeaderboard] = useState<{ email: string, name: string, count: number }[]>([]);
 
   const adminEmails = ['kanishkagrawal1302banswara@gmail.com', 'f20220869@pilani.bits-pilani.ac.in'];
   const isAdmin = user?.email && adminEmails.includes(user.email);
@@ -127,7 +131,7 @@ export default function App() {
         if (step === 'confirm') setStep('lookup');
         else if (step === 'amount') setStep('confirm');
         else if (step === 'verify') setStep('amount');
-        else if (step === 'success') resetForm();
+        else if (step === 'success' || step === 'admin' || step === 'leaderboard') resetForm();
       }
 
       if (['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(e.key) && step === 'amount' && !isInputFocused) {
@@ -218,7 +222,7 @@ export default function App() {
         if (step === 'confirm') setStep('lookup');
         else if (step === 'amount') setStep('confirm');
         else if (step === 'verify') setStep('amount');
-        else if (step === 'success') resetForm();
+        else if (step === 'success' || step === 'admin' || step === 'leaderboard') resetForm();
       }
     };
 
@@ -234,7 +238,7 @@ export default function App() {
   useEffect(() => {
     if (step === 'verify' && !otpLoading && !otpVerified) {
       const timer = setTimeout(() => {
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < 4; i++) {
           const input = document.getElementById(`otp-${i}`) as HTMLInputElement;
           if (input && !input.value) {
             input.focus();
@@ -245,6 +249,24 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [step, otpLoading, otpVerified]);
+
+  // Helper to bypass Supabase 1000 row limit
+  const fetchAllRecords = async (tableName: string) => {
+    let allRecords: any[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase.from(tableName).select('*').range(from, from + 999);
+      if (error) throw error;
+      if (data) {
+        allRecords.push(...data);
+        if (data.length < 1000) break;
+        from += 1000;
+      } else {
+        break;
+      }
+    }
+    return allRecords;
+  };
 
   // Admin Stats Listener
   useEffect(() => {
@@ -282,6 +304,90 @@ export default function App() {
     }
   }, [step, isAdmin]);
 
+  // Leaderboard Listener
+  useEffect(() => {
+    if (step === 'leaderboard') {
+      const fetchLeaderboard = async () => {
+        try {
+          const donations = await fetchAllRecords('donations') as any[];
+          const students = await fetchAllRecords('students') as Student[];
+
+          // Calculate top 5 hostels
+          const hostelCounts: Record<string, number> = {};
+          donations.forEach(d => {
+            const dId = d.bitsId?.trim().toLowerCase() || '';
+            if (!dId) return;
+            const student = students.find(s => s.bitsId?.trim().toLowerCase() === dId);
+            const hostel = (student?.hostel || '').trim() || 'Unknown';
+            hostelCounts[hostel] = (hostelCounts[hostel] || 0) + 1;
+          });
+          const topHostels = Object.entries(hostelCounts)
+            .map(([hostel, count]) => ({ hostel, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 5);
+
+          // Calculate top 5 volunteers
+          const volCounts: Record<string, { count: number; name: string }> = {};
+          donations.forEach(d => {
+            const email = d.volunteerEmail?.trim();
+            const storedName = d.volunteerName?.trim();
+            if (email) {
+              if (!volCounts[email]) {
+                volCounts[email] = { count: 0, name: storedName || '' };
+              }
+              volCounts[email].count += 1;
+              if (storedName && !volCounts[email].name) {
+                volCounts[email].name = storedName;
+              }
+            }
+          });
+          
+          const topVolunteers = Object.entries(volCounts)
+            .map(([email, data]) => {
+              let name = data.name;
+              if (!name) {
+                const emailLower = email.toLowerCase();
+                const emailPrefix = emailLower.split('@')[0];
+                const student = students.find(s => {
+                  const sEmail = s.email?.trim().toLowerCase();
+                  if (sEmail === emailLower) return true;
+                  if (sEmail && sEmail.split('@')[0] === emailPrefix) return true;
+                  return false;
+                });
+                name = student?.name?.trim() || '';
+                
+                if (!name) {
+                  name = emailPrefix;
+                  if (/^f\d{8}$/i.test(name)) name = name.toUpperCase();
+                }
+              }
+              return { email, name, count: data.count };
+            })
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 5);
+
+          setHostelLeaderboard(topHostels);
+          setVolunteerLeaderboard(topVolunteers);
+        } catch (err) {
+          console.error("Leaderboard fetch error:", err);
+        }
+      };
+
+      fetchLeaderboard();
+      
+      const channel = supabase
+        .channel('leaderboard_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'donations' }, () => {
+          fetchLeaderboard();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [step]);
+
   const [isDbReady, setIsDbReady] = useState<boolean | null>(null);
 
   // Test Connection
@@ -311,7 +417,10 @@ export default function App() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin
+          redirectTo: window.location.origin,
+          queryParams: {
+            prompt: 'select_account'
+          }
         }
       });
       if (error) throw error;
@@ -381,8 +490,10 @@ export default function App() {
         amount,
         paymentMode,
         timestamp: new Date().toISOString(),
-        volunteerEmail: user.email || 'unknown'
+        volunteerEmail: user.email || 'unknown',
+        volunteerName: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Unknown'
       };
+      
       const { error } = await supabase
         .from('donations')
         .insert(donationData);
@@ -407,7 +518,7 @@ export default function App() {
     setIsOtherAmount(false);
     setPaymentMode('upi');
     setError(null);
-    setOtpDigits(Array(6).fill(''));
+    setOtpDigits(Array(4).fill(''));
     setOtpLoading(false);
     setOtpError(null);
     setOtpSent(false);
@@ -452,7 +563,7 @@ export default function App() {
   };
 
   const handleProceedToVerify = async () => {
-    setOtpDigits(Array(6).fill(''));
+    setOtpDigits(Array(4).fill(''));
     setOtpError(null);
     setOtpSent(false);
     setOtpVerified(false);
@@ -485,7 +596,7 @@ export default function App() {
   const verifyDonorOtp = async () => {
     if (!currentStudent?.email) return;
     const otp = otpDigits.join('');
-    if (otp.length !== 6) { setOtpError('Please enter all 6 digits.'); return; }
+    if (otp.length !== 4) { setOtpError('Please enter all 4 digits.'); return; }
     setOtpLoading(true);
     setOtpError(null);
     try {
@@ -520,15 +631,15 @@ export default function App() {
     if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
       refs[index - 1].current?.focus();
     }
-    if (e.key === 'Enter' && otpDigits.join('').length === 6) {
+    if (e.key === 'Enter' && otpDigits.join('').length === 4) {
       verifyDonorOtp();
     }
   };
 
   const handleOtpPaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (pasted.length === 6) {
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4);
+    if (pasted.length === 4) {
       setOtpDigits(pasted.split(''));
     }
   };
@@ -536,26 +647,28 @@ export default function App() {
   const exportData = async () => {
     setLoading(true);
     try {
-      const { data: donations, error: dErr } = await supabase.from('donations').select('*');
-      const { data: students, error: sErr } = await supabase.from('students').select('*');
-      
-      if (dErr || sErr) throw dErr || sErr;
+      const donations = await fetchAllRecords('donations');
+      const students = await fetchAllRecords('students');
 
-      const donationsList = (donations as Donation[]).map(d => ({
+      const donationsList = (donations as any[]).map(d => ({
         ...d,
         timestamp: new Date(d.timestamp).toLocaleString()
       }));
       
       const studentsList = students as Student[];
-      const donorIds = new Set(donationsList.map(d => d.bitsId));
-      const nonDonors = studentsList.filter(s => !donorIds.has(s.bitsId));
+      const donorIds = new Set(donationsList.map(d => d.bitsId?.trim().toLowerCase()));
+      const nonDonors = studentsList.filter(s => {
+        const id = s.bitsId?.trim().toLowerCase();
+        return id ? !donorIds.has(id) : false;
+      });
 
       // Create workbook
       const wb = XLSX.utils.book_new();
       
       // Donors Sheet
       const donorsSheetData = donationsList.map(d => {
-        const student = studentsList.find(s => s.bitsId === d.bitsId);
+        const dId = d.bitsId?.trim().toLowerCase();
+        const student = studentsList.find(s => s.bitsId?.trim().toLowerCase() === dId);
         return {
           'BITS ID': d.bitsId,
           'Name': student?.name || 'Unknown',
@@ -712,7 +825,7 @@ export default function App() {
               <span className="text-stone-400 text-xs font-mono uppercase tracking-widest">SQL Setup Script</span>
               <button 
                 onClick={() => {
-                  const sql = `-- Create Students table\ncreate table students (\n  "bitsId" text primary key,\n  "name" text not null,\n  "hostel" text,\n  "roomNo" text,\n  "email" text\n);\n\n-- Create Donations table\ncreate table donations (\n  id uuid default gen_random_uuid() primary key,\n  "bitsId" text references students("bitsId"),\n  "amount" numeric not null,\n  "paymentMode" text check ("paymentMode" in ('swd', 'upi')),\n  "timestamp" timestamptz default now(),\n  "volunteerEmail" text\n);\n\n-- Enable Realtime\nalter publication supabase_realtime add table donations;`;
+                  const sql = `-- Create Students table\ncreate table students (\n  "bitsId" text primary key,\n  "name" text not null,\n  "hostel" text,\n  "roomNo" text,\n  "email" text\n);\n\n-- Create Donations table\ncreate table donations (\n  id uuid default gen_random_uuid() primary key,\n  "bitsId" text references students("bitsId"),\n  "amount" numeric not null,\n  "paymentMode" text check ("paymentMode" in ('swd', 'upi')),\n  "timestamp" timestamptz default now(),\n  "volunteerEmail" text,\n  "volunteerName" text\n);\n\n-- Enable Realtime\nalter publication supabase_realtime add table donations;`;
                   navigator.clipboard.writeText(sql);
                   setSuccess('SQL copied to clipboard!');
                 }}
@@ -738,7 +851,8 @@ create table donations (
   "amount" numeric not null,
   "paymentMode" text check ("paymentMode" in ('swd', 'upi')),
   "timestamp" timestamptz default now(),
-  "volunteerEmail" text
+  "volunteerEmail" text,
+  "volunteerName" text
 );
 
 -- Enable Realtime
@@ -800,16 +914,30 @@ alter publication supabase_realtime add table donations;`}
     <div className="min-h-screen bg-stone-50 text-stone-900 font-sans overscroll-x-none touch-pan-y">
       {/* Navigation */}
       <nav className="bg-white border-b border-stone-200 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-white border border-stone-200 shadow-sm rounded-xl flex items-center justify-center overflow-hidden">
+        <button 
+          onClick={() => {
+            // Need to determine how to go "home" without breaking state.
+            // A simple page reload is safest, or firing window.location.href.
+            window.location.reload();
+          }}
+          className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity"
+        >
+          <div className="w-10 h-10 bg-white border border-stone-200 shadow-sm rounded-xl flex items-center justify-center overflow-hidden shrink-0">
             <img src="/logo.jpg" alt="NSS Logo" className="w-8 h-8 object-contain" />
           </div>
           <div>
             <h2 className="font-serif font-bold text-lg leading-tight uppercase tracking-tight">UMANG COLLECTION</h2>
             <p className="hidden sm:block text-xs text-stone-400 uppercase tracking-widest font-medium">Volunteer Portal</p>
           </div>
-        </div>
+        </button>
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => setStep('leaderboard')}
+            className="p-2 text-stone-400 hover:text-stone-900 transition-colors"
+            title="Leaderboard"
+          >
+            <Trophy className="w-6 h-6" />
+          </button>
           {isAdmin && (
             <button
               onClick={() => setStep('admin')}
@@ -911,7 +1039,7 @@ alter publication supabase_realtime add table donations;`}
                           <p className="text-xs text-stone-500 font-mono mt-0.5">{student.bitsId}</p>
                         </div>
                         <div className="text-xs text-stone-500 font-medium px-2.5 py-1.5 bg-stone-100 rounded-lg self-start sm:self-auto shrink-0">
-                          {student.hostel} {student.roomNo && `• Rm ${student.roomNo}`}
+                          {student.hostel} {student.roomNo && `• ${student.roomNo}`}
                         </div>
                       </button>
                     ))}
@@ -960,75 +1088,24 @@ alter publication supabase_realtime add table donations;`}
                         </button>
                       </div>
                     )}
-                    {editingField === 'bitsId' ? (
-                      <input 
-                        type="text"
-                        defaultValue={currentStudent.bitsId}
-                        onBlur={(e) => {
-                          updateStudentField('bitsId', e.target.value.toUpperCase());
-                          setEditingField(null);
-                        }}
-                        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-                        className="font-mono text-stone-500 bg-stone-50 border border-stone-900/20 rounded-lg px-2 py-1 mt-1 focus:outline-none focus:ring-2 focus:ring-stone-900/10 uppercase"
-                        autoFocus
-                      />
-                    ) : (
                       <div className="flex items-center gap-3 mt-1">
                         <p className="text-stone-500 font-mono">{currentStudent.bitsId}</p>
-                        <button onClick={() => setEditingField('bitsId')} className="p-2 bg-stone-100 rounded-full text-stone-400 hover:text-stone-900 hover:bg-stone-200 transition-all shrink-0">
-                          <Pencil className="w-3 h-3 sm:w-4 sm:h-4" />
-                        </button>
                       </div>
-                    )}
                   </div>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-6 pt-6 border-t border-stone-100">
                   <div>
                     <label className="text-[10px] uppercase tracking-widest font-bold text-stone-400 block mb-1">Hostel</label>
-                    {editingField === 'hostel' ? (
-                      <input 
-                        type="text"
-                        defaultValue={currentStudent.hostel}
-                        onBlur={(e) => {
-                          updateStudentField('hostel', e.target.value);
-                          setEditingField(null);
-                        }}
-                        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-                        className="font-medium bg-stone-50 border border-stone-900/20 rounded-lg px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-stone-900/10"
-                        autoFocus
-                      />
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <p className="font-medium">{currentStudent.hostel}</p>
-                        <button onClick={() => setEditingField('hostel')} className="p-2 bg-stone-100 rounded-full text-stone-500 hover:text-stone-900 hover:bg-stone-200 transition-all shrink-0">
-                          <Pencil className="w-3 h-3 sm:w-4 sm:h-4" />
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-3">
+                      <p className="font-medium">{currentStudent.hostel}</p>
+                    </div>
                   </div>
                   <div>
                     <label className="text-[10px] uppercase tracking-widest font-bold text-stone-400 block mb-1">Room No</label>
-                    {editingField === 'roomNo' ? (
-                      <input 
-                        type="text"
-                        defaultValue={currentStudent.roomNo}
-                        onBlur={(e) => {
-                          updateStudentField('roomNo', e.target.value);
-                          setEditingField(null);
-                        }}
-                        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-                        className="font-medium bg-stone-50 border border-stone-900/20 rounded-lg px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-stone-900/10"
-                        autoFocus
-                      />
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <p className="font-medium">{currentStudent.roomNo}</p>
-                        <button onClick={() => setEditingField('roomNo')} className="p-2 bg-stone-100 rounded-full text-stone-500 hover:text-stone-900 hover:bg-stone-200 transition-all shrink-0">
-                          <Pencil className="w-3 h-3 sm:w-4 sm:h-4" />
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-3">
+                      <p className="font-medium">{currentStudent.roomNo}</p>
+                    </div>
                   </div>
                 </div>
                 <div className="pt-4 border-t border-stone-100">
@@ -1076,7 +1153,7 @@ alter publication supabase_realtime add table donations;`}
 
           {step === 'verify' && currentStudent && (() => {
             // Create refs inside render via closure — stable per render
-            const otpRefs = Array.from({ length: 6 }, () => React.createRef<HTMLInputElement>());
+            const otpRefs = Array.from({ length: 4 }, () => React.createRef<HTMLInputElement>());
             const maskedEmail = currentStudent.email.replace(/^(.{2})(.+)(@.+)$/, (_, a, _b, c) => a + '****' + c);
             return (
               <motion.div
@@ -1096,7 +1173,7 @@ alter publication supabase_realtime add table donations;`}
                 </div>
 
                 <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
-                  {/* 6-digit OTP boxes */}
+                  {/* 4-digit OTP boxes */}
                   <div className="flex gap-2 sm:gap-3 justify-center" onPaste={handleOtpPaste}>
                     {otpDigits.map((digit, i) => (
                       <input
@@ -1167,7 +1244,7 @@ alter publication supabase_realtime add table donations;`}
                   <button
                     id="verify-next-btn"
                     onClick={verifyDonorOtp}
-                    disabled={otpDigits.join('').length !== 6 || otpLoading || otpVerified}
+                    disabled={otpDigits.join('').length !== 4 || otpLoading || otpVerified}
                     className="w-full py-4 bg-stone-900 text-white rounded-2xl font-medium hover:bg-stone-800 disabled:opacity-40 transition-all flex items-center justify-center gap-2"
                   >
                     {otpLoading && otpSent ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
@@ -1413,44 +1490,91 @@ alter publication supabase_realtime add table donations;`}
                   </button>
                 </div>
 
-                <div className="bg-white border border-stone-200 rounded-3xl p-8 space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-                      <Database className="w-6 h-6 text-amber-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-lg">Database Management</h3>
-                      <p className="text-sm text-stone-500">Upload student records or seed mock data</p>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <button 
-                      onClick={seedMockData}
-                      disabled={loading}
-                      className="w-full py-4 border border-amber-200 text-amber-700 rounded-2xl font-medium hover:bg-amber-50 disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Database className="w-5 h-5" />}
-                      Seed Mock Data
-                    </button>
 
-                    <label className="relative cursor-pointer">
-                      <input 
-                        type="file" 
-                        accept=".xlsx,.xls,.csv" 
-                        onChange={handleFileUpload}
-                        className="hidden"
-                        disabled={loading}
-                      />
-                      <div className="w-full py-4 bg-stone-100 text-stone-700 rounded-2xl font-medium hover:bg-stone-200 transition-colors flex items-center justify-center gap-2">
-                        <Download className="w-5 h-5 rotate-180" />
-                        Bulk Upload Students
-                      </div>
-                    </label>
+              </div>
+            </motion.div>
+          )}
+
+          {step === 'leaderboard' && (
+            <motion.div 
+              key="leaderboard"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="space-y-8"
+            >
+              <div className="flex items-start sm:items-center justify-between">
+                <div className="space-y-1">
+                  <h1 className="text-2xl sm:text-3xl font-serif font-bold">Leaderboard</h1>
+                  <p className="text-stone-500">Top hostels and volunteers by number of donations</p>
+                </div>
+                <button 
+                  onClick={() => setStep('lookup')}
+                  className="p-2 text-stone-400 hover:text-stone-900"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {/* Hostels Leaderboard */}
+                <div className="bg-white border border-stone-200 rounded-3xl p-6 shadow-sm">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+                      <Trophy className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <h2 className="text-xl font-bold">Top 5 Hostels</h2>
                   </div>
-                  <p className="text-[10px] text-stone-400 text-center uppercase tracking-widest font-bold">
-                    File should have columns: bitsId, name, hostel, roomNo, email
-                  </p>
+                  <div className="space-y-4">
+                    {hostelLeaderboard.length === 0 ? (
+                      <p className="text-sm text-stone-500 text-center py-4">No data yet</p>
+                    ) : (
+                      hostelLeaderboard.map((h, i) => (
+                        <div key={h.hostel} className="flex items-center justify-between p-3 rounded-2xl bg-stone-50 hover:bg-stone-100 transition-colors border border-transparent hover:border-stone-200">
+                          <div className="flex items-center gap-3">
+                            <span className="w-6 text-center font-bold text-stone-400 text-lg">
+                              {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
+                            </span>
+                            <span className="font-bold text-stone-900">{h.hostel}</span>
+                          </div>
+                          <div className="px-3 py-1.5 bg-white rounded-lg border border-stone-200 text-sm font-bold shadow-sm">
+                            {h.count} <span className="text-[10px] text-stone-400 uppercase tracking-widest font-bold ml-1">dn</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Volunteers Leaderboard */}
+                <div className="bg-white border border-stone-200 rounded-3xl p-6 shadow-sm">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
+                      <UserIcon className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <h2 className="text-xl font-bold">Top 5 Volunteers</h2>
+                  </div>
+                  <div className="space-y-4">
+                    {volunteerLeaderboard.length === 0 ? (
+                      <p className="text-sm text-stone-500 text-center py-4">No data yet</p>
+                    ) : (
+                      volunteerLeaderboard.map((v, i) => (
+                        <div key={v.email} className="flex items-center justify-between p-3 rounded-2xl bg-stone-50 hover:bg-stone-100 transition-colors border border-transparent hover:border-stone-200">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="w-6 text-center font-bold text-stone-400 text-lg shrink-0">
+                              {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
+                            </span>
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-bold text-stone-900 truncate" title={v.name}>{v.name}</span>
+                            </div>
+                          </div>
+                          <div className="px-3 py-1.5 bg-white rounded-lg border border-stone-200 text-sm font-bold shadow-sm shrink-0 ml-2">
+                            {v.count} <span className="text-[10px] text-stone-400 uppercase tracking-widest font-bold ml-1">dn</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             </motion.div>

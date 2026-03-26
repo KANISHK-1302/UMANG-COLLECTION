@@ -1,5 +1,5 @@
 // Supabase Edge Function: verify-donor-otp
-// Verifies the 6-digit OTP against the stored hash and marks it as used.
+// Verifies the 4-digit OTP against the stored hash and marks it as used.
 // Deploy: supabase functions deploy verify-donor-otp
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -35,10 +35,10 @@ Deno.serve(async (req) => {
   try {
     const { email, otp } = await req.json();
 
-    if (!email || !otp || typeof otp !== "string" || otp.length !== 6) {
+    if (!email || !otp || typeof otp !== "string" || otp.length !== 4) {
       return new Response(
-        JSON.stringify({ error: "Valid email and 6-digit OTP are required." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Valid email and 4-digit OTP are required." }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     if (!record) {
       return new Response(
         JSON.stringify({ error: "No valid OTP found. Please request a new code." }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
         .eq("id", record.id);
       return new Response(
         JSON.stringify({ error: "Too many incorrect attempts. Please request a new code." }),
-        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
             : "Too many incorrect attempts. Please request a new code.",
           invalidated: remaining <= 0,
         }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -119,8 +119,8 @@ Deno.serve(async (req) => {
   } catch (err: any) {
     console.error("verify-donor-otp error:", err);
     return new Response(
-      JSON.stringify({ error: err.message || "Internal server error." }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: err.stack || err.message || "Unknown Internal Server Error" }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

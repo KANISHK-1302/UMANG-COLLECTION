@@ -1,5 +1,5 @@
 // Supabase Edge Function: send-donor-otp
-// Generates a 6-digit OTP, stores a hash in donor_otps, and sends it via Gmail SMTP (Nodemailer).
+// Generates a 4-digit OTP, stores a hash in donor_otps, and sends it via Gmail SMTP (Nodemailer).
 // Deploy: supabase functions deploy send-donor-otp --no-verify-jwt
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     if (!email || typeof email !== "string") {
       return new Response(
         JSON.stringify({ error: "Email is required." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -49,12 +49,12 @@ Deno.serve(async (req) => {
     if ((count ?? 0) >= 3) {
       return new Response(
         JSON.stringify({ error: "Too many OTP requests. Please wait before requesting a new code." }),
-        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Generate a cryptographically secure 6-digit OTP
-    const otp = String(Math.floor(100000 + crypto.getRandomValues(new Uint32Array(1))[0] % 900000));
+    // Generate a cryptographically secure 4-digit OTP
+    const otp = String(Math.floor(1000 + crypto.getRandomValues(new Uint32Array(1))[0] % 9000));
     const salt = crypto.randomUUID();
     const otpHash = await hashOtp(otp, salt);
 
@@ -100,16 +100,55 @@ Deno.serve(async (req) => {
     const formattedAmount = Number(amount || 0).toLocaleString('en-IN');
     const donorName = name || 'Donor';
 
-    await transporter.sendMail({
-      from: `"UMANG Collection'26" <${senderEmail}>`,
-      to: email,
-      subject: "Donation Confirmation & Verification Code || UC'26",
-      html: `
-        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; color: #1c1917;">
+    const baseStyles = "font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; color: #1c1917;";
+    
+    let subject = "";
+    let html = "";
+
+    if (paymentMode === 'UPI') {
+      subject = "Donation Request & Verification Code || NSS";
+      html = `
+        <div style="${baseStyles}">
           <p style="font-size: 16px; margin-bottom: 24px;">Dear ${donorName},</p>
           
           <p style="line-height: 1.6; margin-bottom: 24px;">
-            Thank you for your generous contribution of <strong>₹${formattedAmount}</strong> via <strong>${paymentMode || 'UPI'}</strong> towards the UMANG Collection 2026. Your support truly helps us make a meaningful difference.
+            We sincerely appreciate your support for the UMANG Collection 2026. Kindly proceed to complete your contribution of <strong>₹${formattedAmount}</strong> via <strong>UPI</strong> using the QR code below.
+          </p>
+
+          <div style="text-align: center; margin-bottom: 24px;">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=demo@upi" alt="UPI QR Code" style="width: 200px; height: 200px; border-radius: 12px; border: 1px solid #d6d3d1; padding: 8px; background: #fff;" />
+            <p style="margin: 8px 0 0; font-size: 13px; color: #78716c;">(Demo QR Code)</p>
+          </div>
+          
+          <p style="line-height: 1.6; margin-bottom: 16px;">
+            Once the payment is made, please use the verification code below to confirm your donation:
+          </p>
+          
+          <div style="background: #f5f5f4; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
+            <p style="color: #78716c; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 8px;">Your OTP</p>
+            <p style="font-size: 44px; font-weight: bold; color: #1c1917; letter-spacing: 0.3em; margin: 0;">${otp}</p>
+          </div>
+          
+          <p style="color: #78716c; font-size: 13px; line-height: 1.5; margin-bottom: 24px;">
+            This code is valid for <strong>10 minutes</strong>. If you did not initiate this request, please ignore this email.
+          </p>
+          
+          <p style="line-height: 1.6; margin-bottom: 32px;">
+            Your contribution goes beyond a donation, it brings hope, support, and meaningful change to those who need it most. We truly appreciate your generosity.
+          </p>
+          
+          <p style="margin: 0; font-weight: bold;">Regards,</p>
+          <p style="color: #78716c; margin: 4px 0 0;">NSS BITS Pilani</p>
+        </div>
+      `;
+    } else {
+      subject = "Donation Confirmation & Verification Code || NSS";
+      html = `
+        <div style="${baseStyles}">
+          <p style="font-size: 16px; margin-bottom: 24px;">Dear ${donorName},</p>
+          
+          <p style="line-height: 1.6; margin-bottom: 24px;">
+            Thank you for your generous contribution of <strong>₹${formattedAmount}</strong> via <strong>SWD</strong> towards the UMANG Collection 2026. Your support truly helps us make a meaningful difference.
           </p>
           
           <p style="line-height: 1.6; margin-bottom: 16px;">
@@ -118,21 +157,28 @@ Deno.serve(async (req) => {
           
           <div style="background: #f5f5f4; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
             <p style="color: #78716c; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 8px;">Your OTP</p>
-            <p style="font-size: 40px; font-weight: bold; color: #1c1917; letter-spacing: 0.2em; margin: 0;">${otp}</p>
+            <p style="font-size: 44px; font-weight: bold; color: #1c1917; letter-spacing: 0.3em; margin: 0;">${otp}</p>
           </div>
           
           <p style="color: #78716c; font-size: 13px; line-height: 1.5; margin-bottom: 24px;">
-            This code is valid for <strong>10 minutes</strong>. If you did not authorize this, please ignore this email.
+            This code is valid for <strong>10 minutes</strong>. If you did not initiate this request, please ignore this email.
           </p>
           
           <p style="line-height: 1.6; margin-bottom: 32px;">
-            Your contribution goes beyond a donation—it brings hope, support, and positive change to those who need it most. We sincerely appreciate your kindness.
+            Your contribution goes beyond a donation, it brings hope, support, and meaningful change to those who need it most. We truly appreciate your generosity.
           </p>
           
           <p style="margin: 0; font-weight: bold;">Regards,</p>
           <p style="color: #78716c; margin: 4px 0 0;">NSS BITS Pilani</p>
         </div>
-      `,
+      `;
+    }
+
+    await transporter.sendMail({
+      from: `"UMANG Collection'26" <${senderEmail}>`,
+      to: email,
+      subject: subject,
+      html: html,
     });
 
     return new Response(
