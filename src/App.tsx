@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabase';
 import { 
   Search, 
@@ -75,6 +75,8 @@ export default function App() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const otpRefs = useRef<(HTMLInputElement | null)[]>(Array(4).fill(null));
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [stats, setStats] = useState({
     total: 0,
     upi: 0,
@@ -150,7 +152,7 @@ export default function App() {
 
         if (step === 'confirm') setStep('lookup');
         else if (step === 'amount') setStep('confirm');
-        else if (step === 'verify') setStep('amount');
+        // Blocked: do NOT allow Escape to navigate away from verify step (prevents OTP state loss)
         else if (step === 'success' || step === 'admin' || step === 'leaderboard') resetForm();
       }
 
@@ -241,7 +243,7 @@ export default function App() {
 
         if (step === 'confirm') setStep('lookup');
         else if (step === 'amount') setStep('confirm');
-        else if (step === 'verify') setStep('amount');
+        // Blocked: do NOT allow swipe-back from verify step (prevents OTP state loss & duplicate emails)
         else if (step === 'success' || step === 'admin' || step === 'leaderboard') resetForm();
       }
     };
@@ -291,17 +293,9 @@ export default function App() {
   // Admin Stats Listener
   useEffect(() => {
     if (step === 'admin' && isAdmin) {
-      const fetchStats = async () => {
-        const { data, error: err } = await supabase
-          .from('donations')
-          .select('*');
-        
-        if (err) {
-          console.error("Stats error:", err);
-          return;
-        }
+      let currentDonations: Donation[] = [];
 
-        const donations = data as Donation[];
+      const calculateStats = (donations: Donation[]) => {
         const total = donations.reduce((acc, d) => acc + d.amount, 0);
         const upi = donations.filter(d => d.paymentMode === 'upi').reduce((acc, d) => acc + d.amount, 0);
         const swd = donations.filter(d => d.paymentMode === 'swd').reduce((acc, d) => acc + d.amount, 0);
@@ -309,12 +303,19 @@ export default function App() {
         setStats({ total, upi, swd, donorCount });
       };
 
-      fetchStats();
+      const fetchInitialStats = async () => {
+        const allDonations = await fetchAllRecords('donations') as Donation[];
+        currentDonations = allDonations;
+        calculateStats(currentDonations);
+      };
+
+      fetchInitialStats();
       
       const channel = supabase
         .channel('donations_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'donations' }, () => {
-          fetchStats();
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'donations' }, (payload) => {
+          currentDonations.push(payload.new as Donation);
+          calculateStats(currentDonations);
         })
         .subscribe();
 
@@ -327,78 +328,85 @@ export default function App() {
   // Leaderboard Listener
   useEffect(() => {
     if (step === 'leaderboard') {
-      const fetchLeaderboard = async () => {
-        try {
-          const donations = await fetchAllRecords('donations') as any[];
-          const students = await fetchAllRecords('students') as Student[];
+      let currentDonations: any[] = [];
+      let currentStudents: any[] = [];
 
-          // Calculate top 5 hostels
-          const hostelCounts: Record<string, number> = {};
-          donations.forEach(d => {
-            const dId = d.bitsId?.trim().toLowerCase() || '';
-            if (!dId) return;
-            const student = students.find(s => s.bitsId?.trim().toLowerCase() === dId);
-            const hostel = (student?.hostel || '').trim() || 'Unknown';
-            hostelCounts[hostel] = (hostelCounts[hostel] || 0) + 1;
-          });
-          const topHostels = Object.entries(hostelCounts)
-            .map(([hostel, count]) => ({ hostel, count }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 5);
+      const calculateLeaderboard = (donations: any[], students: any[]) => {
+        // Calculate top 5 hostels
+        const hostelCounts: Record<string, number> = {};
+        donations.forEach(d => {
+          const dId = d.bitsId?.trim().toLowerCase() || '';
+          if (!dId) return;
+          const student = students.find(s => s.bitsId?.trim().toLowerCase() === dId);
+          const hostel = (student?.hostel || '').trim() || 'Unknown';
+          hostelCounts[hostel] = (hostelCounts[hostel] || 0) + 1;
+        });
+        const topHostels = Object.entries(hostelCounts)
+          .map(([hostel, count]) => ({ hostel, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5);
 
-          // Calculate top 5 volunteers
-          const volCounts: Record<string, { count: number; name: string }> = {};
-          donations.forEach(d => {
-            const email = d.volunteerEmail?.trim();
-            const storedName = d.volunteerName?.trim();
-            if (email) {
-              if (!volCounts[email]) {
-                volCounts[email] = { count: 0, name: storedName || '' };
-              }
-              volCounts[email].count += 1;
-              if (storedName && !volCounts[email].name) {
-                volCounts[email].name = storedName;
+        // Calculate top 5 volunteers
+        const volCounts: Record<string, { count: number; name: string }> = {};
+        donations.forEach(d => {
+          const email = d.volunteerEmail?.trim();
+          const storedName = d.volunteerName?.trim();
+          if (email) {
+            if (!volCounts[email]) {
+              volCounts[email] = { count: 0, name: storedName || '' };
+            }
+            volCounts[email].count += 1;
+            if (storedName && !volCounts[email].name) {
+              volCounts[email].name = storedName;
+            }
+          }
+        });
+        
+        const topVolunteers = Object.entries(volCounts)
+          .map(([email, data]) => {
+            let name = data.name;
+            if (!name) {
+              const emailLower = email.toLowerCase();
+              const emailPrefix = emailLower.split('@')[0];
+              const student = students.find(s => {
+                const sEmail = s.email?.trim().toLowerCase();
+                if (sEmail === emailLower) return true;
+                if (sEmail && sEmail.split('@')[0] === emailPrefix) return true;
+                return false;
+              });
+              name = student?.name?.trim() || '';
+              
+              if (!name) {
+                name = emailPrefix;
+                if (/^f\d{8}$/i.test(name)) name = name.toUpperCase();
               }
             }
-          });
-          
-          const topVolunteers = Object.entries(volCounts)
-            .map(([email, data]) => {
-              let name = data.name;
-              if (!name) {
-                const emailLower = email.toLowerCase();
-                const emailPrefix = emailLower.split('@')[0];
-                const student = students.find(s => {
-                  const sEmail = s.email?.trim().toLowerCase();
-                  if (sEmail === emailLower) return true;
-                  if (sEmail && sEmail.split('@')[0] === emailPrefix) return true;
-                  return false;
-                });
-                name = student?.name?.trim() || '';
-                
-                if (!name) {
-                  name = emailPrefix;
-                  if (/^f\d{8}$/i.test(name)) name = name.toUpperCase();
-                }
-              }
-              return { email, name, count: data.count };
-            })
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 5);
+            return { email, name, count: data.count };
+          })
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5);
 
-          setHostelLeaderboard(topHostels);
-          setVolunteerLeaderboard(topVolunteers);
+        setHostelLeaderboard(topHostels);
+        setVolunteerLeaderboard(topVolunteers);
+      };
+
+      const fetchInitialLeaderboard = async () => {
+        try {
+          currentDonations = await fetchAllRecords('donations') as any[];
+          currentStudents = await fetchAllRecords('students') as Student[];
+          calculateLeaderboard(currentDonations, currentStudents);
         } catch (err) {
           console.error("Leaderboard fetch error:", err);
         }
       };
 
-      fetchLeaderboard();
+      fetchInitialLeaderboard();
       
       const channel = supabase
         .channel('leaderboard_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'donations' }, () => {
-          fetchLeaderboard();
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'donations' }, (payload) => {
+          currentDonations.push(payload.new);
+          calculateLeaderboard(currentDonations, currentStudents);
         })
         .subscribe();
 
@@ -487,6 +495,7 @@ export default function App() {
 
   const updateStudentField = async (field: keyof Student, value: string) => {
     if (!currentStudent) return;
+    const previousStudent = { ...currentStudent };
     const updatedStudent = { ...currentStudent, [field]: value };
     setCurrentStudent(updatedStudent);
     
@@ -497,6 +506,8 @@ export default function App() {
       if (error) throw error;
     } catch (err) {
       console.error("Failed to update student record:", err);
+      setCurrentStudent(previousStudent);
+      setError('Failed to save edit. Please try again.');
     }
   };
 
@@ -544,15 +555,21 @@ export default function App() {
     setOtpSent(false);
     setOtpVerified(false);
     setResendCooldown(0);
+    if (cooldownRef.current) { clearInterval(cooldownRef.current); cooldownRef.current = null; }
   };
 
   // --- OTP helpers ---
 
   const startResendCooldown = () => {
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
     setResendCooldown(60);
-    const interval = setInterval(() => {
+    cooldownRef.current = setInterval(() => {
       setResendCooldown((prev) => {
-        if (prev <= 1) { clearInterval(interval); return 0; }
+        if (prev <= 1) {
+          if (cooldownRef.current) clearInterval(cooldownRef.current);
+          cooldownRef.current = null;
+          return 0;
+        }
         return prev - 1;
       });
     }, 1000);
@@ -626,7 +643,7 @@ export default function App() {
       if (error) throw error;
       if (data?.error) {
         setOtpError(data.error);
-        if (data?.invalidated) setOtpDigits(Array(6).fill(''));
+        if (data?.invalidated) setOtpDigits(Array(4).fill(''));
         return;
       }
       setOtpVerified(true);
@@ -638,18 +655,18 @@ export default function App() {
     }
   };
 
-  const handleOtpInput = (index: number, value: string, refs: React.RefObject<HTMLInputElement>[]) => {
+  const handleOtpInput = (index: number, value: string, refs: (HTMLInputElement | null)[]) => {
     if (!/^\d*$/.test(value)) return;
     const newDigits = [...otpDigits];
     newDigits[index] = value.slice(-1);
     setOtpDigits(newDigits);
     setOtpError(null);
-    if (value && index < 5) refs[index + 1].current?.focus();
+    if (value && index < 3) refs[index + 1]?.focus();
   };
 
-  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>, refs: React.RefObject<HTMLInputElement>[]) => {
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>, refs: (HTMLInputElement | null)[]) => {
     if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
-      refs[index - 1].current?.focus();
+      refs[index - 1]?.focus();
     }
     if (e.key === 'Enter' && otpDigits.join('').length === 4) {
       verifyDonorOtp();
@@ -1190,8 +1207,6 @@ alter publication supabase_realtime add table donations;`}
           )}
 
           {step === 'verify' && currentStudent && (() => {
-            // Create refs inside render via closure — stable per render
-            const otpRefs = Array.from({ length: 4 }, () => React.createRef<HTMLInputElement>());
             const maskedEmail = currentStudent.email.replace(/^(.{2})(.+)(@.+)$/, (_, a, _b, c) => a + '****' + c);
             return (
               <motion.div
@@ -1217,15 +1232,15 @@ alter publication supabase_realtime add table donations;`}
                       <input
                         key={i}
                         id={`otp-${i}`}
-                        ref={otpRefs[i]}
+                        ref={(el) => { otpRefs.current[i] = el; }}
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
                         maxLength={1}
                         value={digit}
                         disabled={otpLoading || otpVerified}
-                        onChange={(e) => handleOtpInput(i, e.target.value, otpRefs)}
-                        onKeyDown={(e) => handleOtpKeyDown(i, e, otpRefs)}
+                        onChange={(e) => handleOtpInput(i, e.target.value, otpRefs.current)}
+                        onKeyDown={(e) => handleOtpKeyDown(i, e, otpRefs.current)}
                         onFocus={(e) => e.target.select()}
                         autoFocus={i === 0}
                         className={cn(
@@ -1419,7 +1434,7 @@ alter publication supabase_realtime add table donations;`}
                 </button>
                 <button 
                   id="amount-next-btn"
-                  disabled={!amount || amount < 1}
+                  disabled={!amount || amount < 1 || otpLoading}
                   onClick={handleProceedToVerify}
                   className="flex-[2] py-3 sm:py-4 bg-stone-900 text-white rounded-xl sm:rounded-2xl font-medium hover:bg-stone-800 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 >
