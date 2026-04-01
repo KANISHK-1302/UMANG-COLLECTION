@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
       .eq("email", email)
       .gte("created_at", tenMinutesAgo);
 
-    if ((count ?? 0) >= 3) {
+    if ((count ?? 0) >= 15) {
       return new Response(
         JSON.stringify({ error: "Too many OTP requests. Please wait before requesting a new code." }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
