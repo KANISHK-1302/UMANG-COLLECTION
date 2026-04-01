@@ -90,14 +90,34 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const handleAuthStatus = async (session: any) => {
+      if (session?.user?.email) {
+        const email = session.user.email;
+        const domain = email.split('@')[1];
+        const validDomains = [
+          'pilani.bits-pilani.ac.in', 
+          'bits-pilani.ac.in', 
+          'goa.bits-pilani.ac.in', 
+          'hyderabad.bits-pilani.ac.in'
+        ];
+        
+        // Prevent all outside logins except for the original developer admin account
+        if (!validDomains.includes(domain) && email !== 'kanishkagrawal1302banswara@gmail.com') {
+          await supabase.auth.signOut();
+          setError('Unauthorized! Only BITS Pilani email addresses are allowed.');
+          setUser(null);
+          setIsAuthReady(true);
+          return;
+        }
+      }
       setUser(session?.user ?? null);
       setIsAuthReady(true);
-    });
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => handleAuthStatus(session));
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setIsAuthReady(true);
+      handleAuthStatus(session);
     });
 
     return () => subscription.unsubscribe();
@@ -610,7 +630,7 @@ export default function App() {
         return;
       }
       setOtpVerified(true);
-      setTimeout(() => handleConfirmDonation(), 800);
+      setTimeout(() => handleConfirmDonation(), 300);
     } catch (err: any) {
       setOtpError(err.message || 'Verification failed. Please try again.');
     } finally {

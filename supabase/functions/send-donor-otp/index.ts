@@ -116,8 +116,8 @@ Deno.serve(async (req) => {
           </p>
 
           <div style="text-align: center; margin-bottom: 24px;">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=demo@upi" alt="UPI QR Code" style="width: 200px; height: 200px; border-radius: 12px; border: 1px solid #d6d3d1; padding: 8px; background: #fff;" />
-            <p style="margin: 8px 0 0; font-size: 13px; color: #78716c;">(Demo QR Code)</p>
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=umangbits@sbi&pn=UMANG" alt="UPI QR Code" style="width: 200px; height: 200px; border-radius: 12px; border: 1px solid #d6d3d1; padding: 8px; background: #fff;" />
+            <p style="margin: 8px 0 0; font-size: 14px; font-weight: bold; color: #1c1917;">UPI ID: umangbits@sbi</p>
           </div>
           
           <p style="line-height: 1.6; margin-bottom: 16px;">
