@@ -1089,27 +1089,10 @@ alter publication supabase_realtime add table donations;`}
                     <UserIcon className="w-8 h-8 text-stone-400" />
                   </div>
                   <div className="space-y-1 flex-1">
-                    {editingField === 'name' ? (
-                      <input 
-                        type="text"
-                        defaultValue={currentStudent.name}
-                        onBlur={(e) => {
-                          updateStudentField('name', e.target.value);
-                          setEditingField(null);
-                        }}
-                        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-                        className="text-xl sm:text-2xl font-bold bg-stone-50 border border-stone-900/20 rounded-xl px-3 py-1 w-full focus:outline-none focus:ring-2 focus:ring-stone-900/10"
-                        autoFocus
-                      />
-                    ) : (
-                      <div className="flex items-center flex-wrap gap-2 group">
-                        <h3 className="text-xl sm:text-2xl font-bold">{currentStudent.name}</h3>
-                        <button onClick={() => setEditingField('name')} className="p-2 bg-stone-100 rounded-full text-stone-500 hover:text-stone-900 hover:bg-stone-200 transition-all shrink-0">
-                          <Pencil className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </button>
-                      </div>
-                    )}
-                      <div className="flex items-center gap-3 mt-1">
+                    <div className="flex items-center flex-wrap gap-2 group">
+                      <h3 className="text-xl sm:text-2xl font-bold">{currentStudent.name}</h3>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1">
                         <p className="text-stone-500 font-mono">{currentStudent.bitsId}</p>
                       </div>
                   </div>
@@ -1118,15 +1101,49 @@ alter publication supabase_realtime add table donations;`}
                 <div className="grid grid-cols-2 gap-6 pt-6 border-t border-stone-100">
                   <div>
                     <label className="text-[10px] uppercase tracking-widest font-bold text-stone-400 block mb-1">Hostel</label>
-                    <div className="flex items-center gap-3">
-                      <p className="font-medium">{currentStudent.hostel}</p>
-                    </div>
+                    {editingField === 'hostel' ? (
+                      <input 
+                        type="text"
+                        defaultValue={currentStudent.hostel}
+                        onBlur={(e) => {
+                          updateStudentField('hostel', e.target.value);
+                          setEditingField(null);
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                        className="font-medium bg-stone-50 border border-stone-900/20 rounded-lg px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-stone-900/10"
+                        autoFocus
+                      />
+                    ) : (
+                      <div className="flex justify-between items-center gap-2 group">
+                        <p className="font-medium truncate flex-1 min-w-0">{currentStudent.hostel}</p>
+                        <button onClick={() => setEditingField('hostel')} className="p-1 sm:p-2 bg-stone-100 rounded-full text-stone-500 hover:text-stone-900 hover:bg-stone-200 transition-all shrink-0">
+                          <Pencil className="w-3 h-3 sm:w-4 sm:h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="text-[10px] uppercase tracking-widest font-bold text-stone-400 block mb-1">Room No</label>
-                    <div className="flex items-center gap-3">
-                      <p className="font-medium">{currentStudent.roomNo}</p>
-                    </div>
+                    {editingField === 'roomNo' ? (
+                      <input 
+                        type="text"
+                        defaultValue={currentStudent.roomNo}
+                        onBlur={(e) => {
+                          updateStudentField('roomNo', e.target.value);
+                          setEditingField(null);
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                        className="font-medium bg-stone-50 border border-stone-900/20 rounded-lg px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-stone-900/10"
+                        autoFocus
+                      />
+                    ) : (
+                      <div className="flex justify-between items-center gap-2 group">
+                        <p className="font-medium truncate flex-1 min-w-0">{currentStudent.roomNo}</p>
+                        <button onClick={() => setEditingField('roomNo')} className="p-1 sm:p-2 bg-stone-100 rounded-full text-stone-500 hover:text-stone-900 hover:bg-stone-200 transition-all shrink-0">
+                          <Pencil className="w-3 h-3 sm:w-4 sm:h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="pt-4 border-t border-stone-100">
