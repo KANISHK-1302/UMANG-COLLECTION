@@ -697,7 +697,8 @@ export default function App() {
           'Hostel': student?.hostel || '-',
           'Room': student?.roomNo || '-',
           'Email': student?.email || '-',
-          'Recorded By': d.volunteerEmail,
+          'Volunteer Name': d.volunteerName || d.volunteerEmail?.split('@')[0] || 'Unknown',
+          'Volunteer Email': d.volunteerEmail,
           'Time': d.timestamp
         };
       });
