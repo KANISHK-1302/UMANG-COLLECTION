@@ -196,7 +196,7 @@ export default function App() {
           setStep('amount');
         } else if (step === 'amount' && amount) {
           const amountNextBtn = document.getElementById('amount-next-btn');
-          if (amountNextBtn) amountNextBtn.click();
+          if (amountNextBtn && !amountNextBtn.hasAttribute('disabled')) amountNextBtn.click();
         } else if (step === 'verify') {
           const verifyBtn = document.getElementById('verify-next-btn');
           if (verifyBtn && !verifyBtn.hasAttribute('disabled')) verifyBtn.click();
@@ -1351,7 +1351,10 @@ alter publication supabase_realtime add table donations;`}
                       min="1"
                       placeholder="Enter amount..."
                       value={amount || ''}
-                      onChange={(e) => setAmount(Number(e.target.value) || null)}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setAmount(val > 0 ? val : null);
+                      }}
                       className="w-full py-4 px-5 bg-white border border-stone-200 rounded-2xl text-xl font-bold focus:outline-none focus:ring-2 focus:ring-stone-900 focus:border-stone-900 transition-all font-mono"
                       autoFocus
                     />
@@ -1398,7 +1401,7 @@ alter publication supabase_realtime add table donations;`}
                 </button>
                 <button 
                   id="amount-next-btn"
-                  disabled={!amount}
+                  disabled={!amount || amount < 1}
                   onClick={handleProceedToVerify}
                   className="flex-[2] py-3 sm:py-4 bg-stone-900 text-white rounded-xl sm:rounded-2xl font-medium hover:bg-stone-800 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 >
