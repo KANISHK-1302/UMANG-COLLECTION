@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { email, otp } = await req.json();
+    const { email, otp, donationData } = await req.json();
 
     if (!email || !otp || typeof otp !== "string" || otp.length !== 4) {
       return new Response(
@@ -111,6 +111,39 @@ Deno.serve(async (req) => {
       .from("donor_otps")
       .update({ used: true })
       .eq("id", record.id);
+
+    // --- SECURE DONATION INSERTION ---
+    if (donationData) {
+      // Get volunteer info from the request's Authorization header
+      const authHeader = req.headers.get("Authorization");
+      let volunteerEmail = "unknown";
+      
+      if (authHeader) {
+        const tempClient = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_ANON_KEY")!,
+          { global: { headers: { Authorization: authHeader } } }
+        );
+        const { data: { user } } = await tempClient.auth.getUser();
+        volunteerEmail = user?.email || "unknown";
+      }
+
+      const { error: insertError } = await supabaseAdmin
+        .from("donations")
+        .insert({
+          bitsId: donationData.bitsId,
+          amount: donationData.amount,
+          paymentMode: donationData.paymentMode,
+          volunteerEmail: volunteerEmail,
+          volunteerName: donationData.volunteerName || "Unknown",
+          timestamp: new Date().toISOString()
+        });
+
+      if (insertError) {
+        console.error("Donation record error:", insertError);
+        throw new Error("OTP verified, but failed to record donation.");
+      }
+    }
 
     return new Response(
       JSON.stringify({ success: true }),

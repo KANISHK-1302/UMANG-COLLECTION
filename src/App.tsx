@@ -98,7 +98,6 @@ export default function App() {
         const domain = email.split('@')[1];
         const validDomains = [
           'pilani.bits-pilani.ac.in', 
-          'bits-pilani.ac.in', 
           'goa.bits-pilani.ac.in', 
           'hyderabad.bits-pilani.ac.in'
         ];
@@ -511,33 +510,11 @@ export default function App() {
     }
   };
 
+  // handleConfirmDonation is now integrated into verifyDonorOtp for security.
+  // This prevents malicious users from inserting donation records without a valid OTP.
   const handleConfirmDonation = async () => {
-    if (!currentStudent || !amount || !user) return;
-
-    setLoading(true);
-    try {
-      const donationData = {
-        bitsId: currentStudent.bitsId,
-        amount,
-        paymentMode,
-        timestamp: new Date().toISOString(),
-        volunteerEmail: user.email || 'unknown',
-        volunteerName: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Unknown'
-      };
-      
-      const { error } = await supabase
-        .from('donations')
-        .insert(donationData);
-      
-      if (error) throw error;
-      setStep('success');
-    } catch (err) {
-      setError('Failed to record donation.');
-      setOtpVerified(false); // Reset so they can retry if DB save fails
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    // Left for backward compatibility if needed, but logic is moved to verifyDonorOtp
+    console.warn("handleConfirmDonation called directly. This is deprecated.");
   };
 
   const resetForm = () => {
@@ -631,29 +608,47 @@ export default function App() {
   };
 
   const verifyDonorOtp = async () => {
-    if (!currentStudent?.email) return;
+    if (!currentStudent?.email || !user?.email) return;
     const otp = otpDigits.join('');
     if (otp.length !== 4) { setOtpError('Please enter all 4 digits.'); return; }
+    
     setOtpLoading(true);
     setOtpError(null);
+    
     try {
-      const { data, error } = await supabase.functions.invoke('verify-donor-otp', {
-        body: { email: currentStudent.email, otp },
+      // The verification and insertion now happen in ONE server-side call.
+      const { data, error: funcError } = await supabase.functions.invoke('verify-donor-otp', {
+        body: { 
+          email: currentStudent.email,
+          otp,
+          donationData: {
+            bitsId: currentStudent.bitsId,
+            amount: Number(amount),
+            paymentMode,
+            volunteerName: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Unknown'
+          }
+        }
       });
-      if (error) throw error;
+
+      if (funcError) throw funcError;
+      
       if (data?.error) {
         setOtpError(data.error);
-        if (data?.invalidated) setOtpDigits(Array(4).fill(''));
         return;
       }
-      setOtpVerified(true);
-      setTimeout(() => handleConfirmDonation(), 300);
+
+      if (data?.success) {
+        setOtpVerified(true);
+        setSuccess('Donation verified and recorded successfully!');
+        setStep('success');
+      }
     } catch (err: any) {
       setOtpError(err.message || 'Verification failed. Please try again.');
     } finally {
       setOtpLoading(false);
     }
   };
+
 
   const handleOtpInput = (index: number, value: string, refs: (HTMLInputElement | null)[]) => {
     if (!/^\d*$/.test(value)) return;
