@@ -15,7 +15,10 @@ TO authenticated
 WITH CHECK (
   auth.jwt() ->> 'email' IN (
     'kanishkagrawal1302banswara@gmail.com',
-    'f20220869@pilani.bits-pilani.ac.in'
+    'f20220869@pilani.bits-pilani.ac.in',
+    'f20221151@pilani.bits-pilani.ac.in',
+    'f20230528@pilani.bits-pilani.ac.in',
+    'f20221095@pilani.bits-pilani.ac.in'
   )
 );
 
@@ -26,7 +29,10 @@ TO authenticated
 USING (
   auth.jwt() ->> 'email' IN (
     'kanishkagrawal1302banswara@gmail.com',
-    'f20220869@pilani.bits-pilani.ac.in'
+    'f20220869@pilani.bits-pilani.ac.in',
+    'f20221151@pilani.bits-pilani.ac.in',
+    'f20230528@pilani.bits-pilani.ac.in',
+    'f20221095@pilani.bits-pilani.ac.in'
   )
 );
 

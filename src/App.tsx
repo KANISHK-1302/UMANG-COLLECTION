@@ -5,13 +5,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabase';
-import { 
-  Search, 
-  User as UserIcon, 
-  CreditCard, 
-  CheckCircle, 
-  LogOut, 
-  ShieldCheck, 
+import {
+  Search,
+  User as UserIcon,
+  CreditCard,
+  CheckCircle,
+  LogOut,
+  ShieldCheck,
   Download,
   Database,
   AlertCircle,
@@ -87,7 +87,13 @@ export default function App() {
   const [hostelLeaderboard, setHostelLeaderboard] = useState<{ hostel: string, count: number }[]>([]);
   const [volunteerLeaderboard, setVolunteerLeaderboard] = useState<{ email: string, name: string, count: number }[]>([]);
 
-  const adminEmails = ['kanishkagrawal1302banswara@gmail.com', 'f20220869@pilani.bits-pilani.ac.in'];
+  const adminEmails = [
+    'kanishkagrawal1302banswara@gmail.com',
+    'f20220869@pilani.bits-pilani.ac.in',
+    'f20221151@pilani.bits-pilani.ac.in',
+    'f20230528@pilani.bits-pilani.ac.in',
+    'f20221095@pilani.bits-pilani.ac.in'
+  ];
   const isAdmin = user?.email && adminEmails.includes(user.email);
 
   // Auth Listener
@@ -97,11 +103,11 @@ export default function App() {
         const email = session.user.email;
         const domain = email.split('@')[1];
         const validDomains = [
-          'pilani.bits-pilani.ac.in', 
-          'goa.bits-pilani.ac.in', 
+          'pilani.bits-pilani.ac.in',
+          'goa.bits-pilani.ac.in',
           'hyderabad.bits-pilani.ac.in'
         ];
-        
+
         // Prevent all outside logins except for the original developer admin account
         if (!validDomains.includes(domain) && email !== 'kanishkagrawal1302banswara@gmail.com') {
           await supabase.auth.signOut();
@@ -157,11 +163,11 @@ export default function App() {
 
       if (['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(e.key) && step === 'amount' && !isInputFocused) {
         e.preventDefault();
-        
+
         if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
           const amounts = [365, 500, 750, 1000, 1500, 2100, 3100, 5100, 'other'];
           let idx = isOtherAmount ? 8 : amounts.indexOf(amount as number);
-          
+
           if (idx === -1) idx = e.key === 'ArrowRight' ? 0 : amounts.length - 1;
           else if (e.key === 'ArrowRight') idx = (idx + 1) % amounts.length;
           else if (e.key === 'ArrowLeft') idx = (idx - 1 + amounts.length) % amounts.length;
@@ -187,7 +193,7 @@ export default function App() {
 
         // If keyboard users explicitly tabbed to the "Back" button, let them go back
         if (activeTag === 'button' && document.activeElement?.textContent?.toLowerCase().includes('back')) {
-          return; 
+          return;
         }
 
         e.preventDefault();
@@ -214,7 +220,7 @@ export default function App() {
   useEffect(() => {
     let touchStartX = 0;
     let touchStartY = 0;
-    
+
     const handleTouchStart = (e: TouchEvent) => {
       touchStartX = e.changedTouches[0].screenX;
       touchStartY = e.changedTouches[0].screenY;
@@ -223,10 +229,10 @@ export default function App() {
     const handleTouchEnd = (e: TouchEvent) => {
       const touchEndX = e.changedTouches[0].screenX;
       const touchEndY = e.changedTouches[0].screenY;
-      
+
       const xDiff = touchEndX - touchStartX;
       const yDiff = touchEndY - touchStartY;
-      
+
       // Swipe Back Feature: Bi-directional horizontal swipe mapping. 
       // Math.abs allows both Left-to-Right and Right-to-Left swipes, overriding OS-specific behaviors when touch-pan-y is applied.
       if (Math.abs(xDiff) > 70 && Math.abs(yDiff) < 60) {
@@ -309,7 +315,7 @@ export default function App() {
       };
 
       fetchInitialStats();
-      
+
       const channel = supabase
         .channel('donations_changes')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'donations' }, (payload) => {
@@ -360,7 +366,7 @@ export default function App() {
             }
           }
         });
-        
+
         const topVolunteers = Object.entries(volCounts)
           .map(([email, data]) => {
             let name = data.name;
@@ -374,7 +380,7 @@ export default function App() {
                 return false;
               });
               name = student?.name?.trim() || '';
-              
+
               if (!name) {
                 name = emailPrefix;
                 if (/^f\d{8}$/i.test(name)) name = name.toUpperCase();
@@ -400,7 +406,7 @@ export default function App() {
       };
 
       fetchInitialLeaderboard();
-      
+
       const channel = supabase
         .channel('leaderboard_changes')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'donations' }, (payload) => {
@@ -422,9 +428,9 @@ export default function App() {
     async function testConnection() {
       const { error: studentError } = await supabase.from('students').select('bitsId').limit(1);
       const { error: donationError } = await supabase.from('donations').select('id').limit(1);
-      
+
       const error = studentError || donationError;
-      
+
       if (error) {
         console.error("Please check your Supabase configuration:", error.message);
         if (error.message.includes('Could not find the table') || error.code === '42P01') {
@@ -461,9 +467,9 @@ export default function App() {
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bitsId.trim()) return;
-    
+
     (document.activeElement as HTMLElement)?.blur();
-    
+
     setLoading(true);
     setError(null);
     try {
@@ -473,7 +479,7 @@ export default function App() {
         .ilike('bitsId', '%' + bitsId.trim().toUpperCase());
 
       if (err) throw err;
-      
+
       if (data && data.length > 0) {
         if (data.length === 1) {
           setCurrentStudent(data[0] as Student);
@@ -497,7 +503,7 @@ export default function App() {
     const previousStudent = { ...currentStudent };
     const updatedStudent = { ...currentStudent, [field]: value };
     setCurrentStudent(updatedStudent);
-    
+
     try {
       const { error } = await supabase
         .from('students')
@@ -558,7 +564,7 @@ export default function App() {
     setOtpError(null);
     try {
       const { data, error } = await supabase.functions.invoke('send-donor-otp', {
-        body: { 
+        body: {
           email: currentStudent.email,
           name: currentStudent.name,
           amount: amount,
@@ -588,7 +594,7 @@ export default function App() {
       setOtpLoading(true);
       try {
         const { data, error } = await supabase.functions.invoke('send-donor-otp', {
-          body: { 
+          body: {
             email: currentStudent.email,
             name: currentStudent.name,
             amount: amount,
@@ -611,14 +617,14 @@ export default function App() {
     if (!currentStudent?.email || !user?.email) return;
     const otp = otpDigits.join('');
     if (otp.length !== 4) { setOtpError('Please enter all 4 digits.'); return; }
-    
+
     setOtpLoading(true);
     setOtpError(null);
-    
+
     try {
       // The verification and insertion now happen in ONE server-side call.
       const { data, error: funcError } = await supabase.functions.invoke('verify-donor-otp', {
-        body: { 
+        body: {
           email: currentStudent.email,
           otp,
           donationData: {
@@ -631,7 +637,7 @@ export default function App() {
       });
 
       if (funcError) throw funcError;
-      
+
       if (data?.error) {
         setOtpError(data.error);
         return;
@@ -686,7 +692,7 @@ export default function App() {
         ...d,
         timestamp: new Date(d.timestamp).toLocaleString()
       }));
-      
+
       const studentsList = students as Student[];
       const donorIds = new Set(donationsList.map(d => d.bitsId?.trim().toLowerCase()));
       const nonDonors = studentsList.filter(s => {
@@ -696,7 +702,7 @@ export default function App() {
 
       // Create workbook
       const wb = XLSX.utils.book_new();
-      
+
       // Donors Sheet
       const donorsSheetData = donationsList.map(d => {
         const dId = d.bitsId?.trim().toLowerCase();
@@ -745,7 +751,7 @@ export default function App() {
       const { error } = await supabase
         .from('students')
         .upsert(mockStudents);
-      
+
       if (error) throw error;
       setSuccess('Mock student data seeded successfully!');
     } catch (err: any) {
@@ -840,7 +846,7 @@ export default function App() {
   if (isDbReady === false) {
     return (
       <div className="min-h-screen bg-stone-100 flex flex-col items-center justify-center p-4">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl max-w-2xl w-full border border-stone-200"
@@ -852,11 +858,11 @@ export default function App() {
           <p className="text-stone-600 mb-6">
             The application is connected to Supabase, but the required tables (<code className="bg-stone-100 px-1 rounded">students</code> and <code className="bg-stone-100 px-1 rounded">donations</code>) were not found.
           </p>
-          
+
           <div className="bg-stone-900 rounded-2xl p-4 sm:p-6 mb-6 overflow-hidden">
             <div className="flex justify-between items-center mb-4">
               <span className="text-stone-400 text-xs font-mono uppercase tracking-widest">SQL Setup Script</span>
-              <button 
+              <button
                 onClick={() => {
                   const sql = `-- Create Students table\ncreate table students (\n  "bitsId" text primary key,\n  "name" text not null,\n  "hostel" text,\n  "roomNo" text,\n  "email" text\n);\n\n-- Create Donations table\ncreate table donations (\n  id uuid default gen_random_uuid() primary key,\n  "bitsId" text references students("bitsId"),\n  "amount" numeric not null,\n  "paymentMode" text check ("paymentMode" in ('swd', 'upi')),\n  "timestamp" timestamptz default now(),\n  "volunteerEmail" text,\n  "volunteerName" text\n);\n\n-- Enable Realtime\nalter publication supabase_realtime add table donations;`;
                   navigator.clipboard.writeText(sql);
@@ -868,7 +874,7 @@ export default function App() {
               </button>
             </div>
             <pre className="text-emerald-400 font-mono text-sm overflow-x-auto">
-{`-- Create Students table
+              {`-- Create Students table
 create table students (
   "bitsId" text primary key,
   "name" text not null,
@@ -907,8 +913,8 @@ alter publication supabase_realtime add table donations;`}
               4. Refresh this page once the tables are created.
             </p>
           </div>
-          
-          <button 
+
+          <button
             onClick={() => window.location.reload()}
             className="mt-8 w-full py-4 bg-stone-900 text-white rounded-2xl font-medium hover:bg-stone-800 transition-colors"
           >
@@ -922,7 +928,7 @@ alter publication supabase_realtime add table donations;`}
   if (!user) {
     return (
       <div className="min-h-screen bg-stone-100 flex flex-col items-center justify-center p-4">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full text-center border border-stone-200"
@@ -932,7 +938,7 @@ alter publication supabase_realtime add table donations;`}
           </div>
           <h1 className="text-3xl font-serif font-bold text-stone-900 mb-2">Fundraiser Portal</h1>
           <p className="text-stone-500 mb-8">Volunteer login required to record donations.</p>
-          <button 
+          <button
             onClick={handleLogin}
             className="w-full py-4 bg-stone-900 text-white rounded-2xl font-medium hover:bg-stone-800 transition-colors flex items-center justify-center gap-2"
           >
@@ -947,7 +953,7 @@ alter publication supabase_realtime add table donations;`}
     <div className="min-h-screen bg-stone-50 text-stone-900 font-sans overscroll-x-none touch-pan-y">
       {/* Navigation */}
       <nav className="bg-white border-b border-stone-200 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between sticky top-0 z-50">
-        <button 
+        <button
           onClick={() => {
             // Need to determine how to go "home" without breaking state.
             // A simple page reload is safest, or firing window.location.href.
@@ -993,7 +999,7 @@ alter publication supabase_realtime add table donations;`}
       <main className="max-w-2xl mx-auto p-4 sm:p-6 pt-8 sm:pt-12">
         <AnimatePresence mode="wait">
           {error && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
@@ -1005,7 +1011,7 @@ alter publication supabase_realtime add table donations;`}
           )}
 
           {success && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
@@ -1017,7 +1023,7 @@ alter publication supabase_realtime add table donations;`}
           )}
 
           {step === 'lookup' && (
-            <motion.div 
+            <motion.div
               key="lookup"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -1029,7 +1035,7 @@ alter publication supabase_realtime add table donations;`}
                 <p className="text-stone-500">Enter BITS ID to fetch details</p>
               </div>
               <form onSubmit={handleLookup} className="relative">
-                <input 
+                <input
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
@@ -1039,7 +1045,7 @@ alter publication supabase_realtime add table donations;`}
                   className="w-full p-4 sm:p-6 bg-white border border-stone-200 rounded-3xl text-lg sm:text-xl font-mono focus:outline-none focus:ring-2 focus:ring-stone-900 transition-all shadow-sm uppercase placeholder:normal-case"
                   autoFocus
                 />
-                <button 
+                <button
                   type="submit"
                   disabled={loading || !bitsId}
                   className="absolute right-3 top-3 bottom-3 px-4 sm:px-6 bg-stone-900 text-white rounded-2xl hover:bg-stone-800 disabled:opacity-50 transition-all flex items-center gap-2"
@@ -1050,7 +1056,7 @@ alter publication supabase_realtime add table donations;`}
               </form>
 
               {searchResults.length > 0 && (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="mt-6 space-y-3"
@@ -1083,7 +1089,7 @@ alter publication supabase_realtime add table donations;`}
           )}
 
           {step === 'confirm' && currentStudent && (
-            <motion.div 
+            <motion.div
               key="confirm"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -1094,7 +1100,7 @@ alter publication supabase_realtime add table donations;`}
                 <h1 className="text-3xl sm:text-4xl font-serif font-bold">Confirm Details</h1>
                 <p className="text-stone-500">Verify student information</p>
               </div>
-              
+
               <div className="bg-white border border-stone-200 rounded-3xl p-5 sm:p-8 shadow-sm space-y-6">
                 <div className="flex items-start gap-4 sm:gap-6">
                   <div className="w-16 h-16 bg-stone-100 rounded-2xl flex items-center justify-center flex-shrink-0">
@@ -1105,16 +1111,16 @@ alter publication supabase_realtime add table donations;`}
                       <h3 className="text-xl sm:text-2xl font-bold">{currentStudent.name}</h3>
                     </div>
                     <div className="flex items-center gap-3 mt-1">
-                        <p className="text-stone-500 font-mono">{currentStudent.bitsId}</p>
-                      </div>
+                      <p className="text-stone-500 font-mono">{currentStudent.bitsId}</p>
+                    </div>
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-6 pt-6 border-t border-stone-100">
                   <div>
                     <label className="text-[10px] uppercase tracking-widest font-bold text-stone-400 block mb-1">Hostel</label>
                     {editingField === 'hostel' ? (
-                      <input 
+                      <input
                         type="text"
                         defaultValue={currentStudent.hostel}
                         onBlur={(e) => {
@@ -1137,7 +1143,7 @@ alter publication supabase_realtime add table donations;`}
                   <div>
                     <label className="text-[10px] uppercase tracking-widest font-bold text-stone-400 block mb-1">Room No</label>
                     {editingField === 'roomNo' ? (
-                      <input 
+                      <input
                         type="text"
                         defaultValue={currentStudent.roomNo}
                         onBlur={(e) => {
@@ -1161,7 +1167,7 @@ alter publication supabase_realtime add table donations;`}
                 <div className="pt-4 border-t border-stone-100">
                   <label className="text-[10px] uppercase tracking-widest font-bold text-stone-400 block mb-1">Email ID</label>
                   {editingField === 'email' ? (
-                    <input 
+                    <input
                       type="email"
                       defaultValue={currentStudent.email}
                       onBlur={(e) => {
@@ -1184,13 +1190,13 @@ alter publication supabase_realtime add table donations;`}
               </div>
 
               <div className="flex gap-4">
-                <button 
+                <button
                   onClick={() => setStep('lookup')}
                   className="flex-1 py-4 border border-stone-200 rounded-2xl font-medium hover:bg-stone-100 transition-colors"
                 >
                   Back
                 </button>
-                <button 
+                <button
                   id="confirm-next-btn"
                   onClick={() => setStep('amount')}
                   className="flex-[2] py-4 bg-stone-900 text-white rounded-2xl font-medium hover:bg-stone-800 transition-colors flex items-center justify-center gap-2"
@@ -1243,10 +1249,10 @@ alter publication supabase_realtime add table donations;`}
                           otpVerified
                             ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                             : otpError
-                            ? "border-red-300 bg-red-50 text-red-700"
-                            : digit
-                            ? "border-stone-900 bg-stone-50 text-stone-900"
-                            : "border-stone-200 bg-white text-stone-900 focus:border-stone-900 focus:ring-2 focus:ring-stone-900/10"
+                              ? "border-red-300 bg-red-50 text-red-700"
+                              : digit
+                                ? "border-stone-900 bg-stone-50 text-stone-900"
+                                : "border-stone-200 bg-white text-stone-900 focus:border-stone-900 focus:ring-2 focus:ring-stone-900/10"
                         )}
                       />
                     ))}
@@ -1323,7 +1329,7 @@ alter publication supabase_realtime add table donations;`}
           })()}
 
           {step === 'amount' && (
-            <motion.div 
+            <motion.div
               key="amount"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -1343,7 +1349,7 @@ alter publication supabase_realtime add table donations;`}
                     className={cn(
                       "py-3 sm:py-6 rounded-xl sm:rounded-2xl border-2 transition-all text-base sm:text-xl font-bold tracking-tight",
                       amount === amt && !isOtherAmount
-                        ? "border-stone-900 bg-stone-900 text-white shadow-lg scale-[1.02]" 
+                        ? "border-stone-900 bg-stone-900 text-white shadow-lg scale-[1.02]"
                         : "border-stone-200 bg-white text-stone-600 hover:border-stone-400"
                     )}
                   >
@@ -1355,7 +1361,7 @@ alter publication supabase_realtime add table donations;`}
                   className={cn(
                     "py-3 sm:py-6 rounded-xl sm:rounded-2xl border-2 transition-all text-base sm:text-xl font-bold tracking-tight",
                     isOtherAmount
-                      ? "border-stone-900 bg-stone-900 text-white shadow-lg scale-[1.02]" 
+                      ? "border-stone-900 bg-stone-900 text-white shadow-lg scale-[1.02]"
                       : "border-stone-200 bg-white text-stone-600 hover:border-stone-400"
                   )}
                 >
@@ -1421,13 +1427,13 @@ alter publication supabase_realtime add table donations;`}
               </div>
 
               <div className="flex gap-2 sm:gap-4 pt-2 sm:pt-4">
-                <button 
+                <button
                   onClick={() => setStep('confirm')}
                   className="flex-1 py-3 sm:py-4 border border-stone-200 rounded-xl sm:rounded-2xl font-medium hover:bg-stone-100 transition-colors"
                 >
                   Back
                 </button>
-                <button 
+                <button
                   id="amount-next-btn"
                   disabled={!amount || amount < 1 || otpLoading}
                   onClick={handleProceedToVerify}
@@ -1441,7 +1447,7 @@ alter publication supabase_realtime add table donations;`}
           )}
 
           {step === 'success' && (
-            <motion.div 
+            <motion.div
               key="success"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -1460,7 +1466,7 @@ alter publication supabase_realtime add table donations;`}
                 <p className="text-stone-500 font-medium">{currentStudent?.name}</p>
                 <p className="text-xs text-stone-400 font-mono mt-2">{currentStudent?.bitsId}</p>
               </div>
-              <button 
+              <button
                 onClick={resetForm}
                 className="w-full max-w-sm py-4 bg-stone-900 text-white rounded-2xl font-medium hover:bg-stone-800 transition-colors"
               >
@@ -1470,7 +1476,7 @@ alter publication supabase_realtime add table donations;`}
           )}
 
           {step === 'admin' && isAdmin && (
-            <motion.div 
+            <motion.div
               key="admin"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1482,7 +1488,7 @@ alter publication supabase_realtime add table donations;`}
                   <h1 className="text-2xl sm:text-3xl font-serif font-bold">Admin Panel</h1>
                   <p className="text-stone-500">Manage data and generate reports</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setStep('lookup')}
                   className="p-2 text-stone-400 hover:text-stone-900"
                 >
@@ -1531,7 +1537,7 @@ alter publication supabase_realtime add table donations;`}
                       <p className="text-sm text-stone-500">Download donor and non-donor lists</p>
                     </div>
                   </div>
-                  <button 
+                  <button
                     onClick={exportData}
                     disabled={loading}
                     className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
@@ -1547,7 +1553,7 @@ alter publication supabase_realtime add table donations;`}
           )}
 
           {step === 'leaderboard' && (
-            <motion.div 
+            <motion.div
               key="leaderboard"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1559,7 +1565,7 @@ alter publication supabase_realtime add table donations;`}
                   <h1 className="text-2xl sm:text-3xl font-serif font-bold">Leaderboard</h1>
                   <p className="text-stone-500">Top hostels and volunteers by number of donations</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setStep('lookup')}
                   className="p-2 text-stone-400 hover:text-stone-900"
                 >
